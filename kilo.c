@@ -43,11 +43,11 @@ void die(const char *s) {
     exit(1);
 }
 
-void disableRawMode() {
+void disableRawMode(void) {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1) die("tcsetattr");
 }
 
-void enableRawMode() {
+void enableRawMode(void) {
     if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1) die("tcgetattr");
     atexit(disableRawMode);
 
@@ -63,7 +63,7 @@ void enableRawMode() {
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) die("tcsetattr");
 }
 
-int editorReadKey() {
+int editorReadKey(void) {
     int nread;
     char c;
 
@@ -190,7 +190,7 @@ void editorDrawRows(struct abuf *ab) {
     }
 }
 
-void editorRefreshScreen() {
+void editorRefreshScreen(void) {
     struct abuf ab = ABUF_INIT;
 
     abAppend(&ab, "\x1b[?25l", 6);
@@ -226,7 +226,7 @@ void editorMoveCursor(int key) {
     }
 }
 
-void editorProcessKeypress() {
+void editorProcessKeypress(void) {
     int c = editorReadKey();
 
     switch (c) {
@@ -263,14 +263,14 @@ void editorProcessKeypress() {
 }
 
 /*** init ***/
-void initEditor() {
+void initEditor(void) {
     E.cx = 0;
     E.cy = 0;
 
     if (getWindowSize(&E.screenrows, &E.screencols) == -1) die("getWindowSize");
 }
 
-int main() {
+int main(void) {
     enableRawMode();
     initEditor();
 
