@@ -202,15 +202,15 @@ void editorUpdateRow(editorRow *row) {
 void editorAppendRow(char *s, size_t len) {
     EditorConfig.row = realloc(EditorConfig.row, sizeof(editorRow) * (EditorConfig.numrows + 1));
 
-    int at = EditorConfig.numrows;
-    EditorConfig.row[at].size = len;
-    EditorConfig.row[at].chars = malloc(len + 1);
-    memcpy(EditorConfig.row[at].chars, s, len);
-    EditorConfig.row[at].chars[len] = '\0';
+    int pos = EditorConfig.numrows;
+    EditorConfig.row[pos].size = len;
+    EditorConfig.row[pos].chars = malloc(len + 1);
+    memcpy(EditorConfig.row[pos].chars, s, len);
+    EditorConfig.row[pos].chars[len] = '\0';
 
-    EditorConfig.row[at].rsize = 0;
-    EditorConfig.row[at].render = NULL;
-    editorUpdateRow(&EditorConfig.row[at]);
+    EditorConfig.row[pos].rsize = 0;
+    EditorConfig.row[pos].render = NULL;
+    editorUpdateRow(&EditorConfig.row[pos]);
 
     EditorConfig.numrows++;
 }
