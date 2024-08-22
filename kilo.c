@@ -233,24 +233,24 @@ void editorOpen(char *filename) {
 }
 
 /*** append buffer ***/
-struct abuf {
+struct AppendBuffer {
     char *b;
     int len;
 };
 
 #define ABUF_INIT {NULL, 0}
 
-void abAppend(struct abuf *ab, const char *s, int len) {
-    char *new = realloc(ab->b, ab->len + len);
+void abAppend(struct AppendBuffer *appendBuffer, const char *s, int len) {
+    char *new = realloc(appendBuffer->b, appendBuffer->len + len);
 
     if (new == NULL) return;
-    memcpy(&new[ab->len], s, len);
-    ab->b = new;
-    ab->len += len;
+    memcpy(&new[appendBuffer->len], s, len);
+    appendBuffer->b = new;
+    appendBuffer->len += len;
 }
 
-void abFree(struct abuf *ab) {
-    free(ab->b);
+void abFree(struct AppendBuffer *appendBuffer) {
+    free(appendBuffer->b);
 }
 
 /*** output ***/
@@ -263,7 +263,7 @@ void editorScroll(void) {
     if (EditorConfig.rx >= EditorConfig.coloff + EditorConfig.screencols) EditorConfig.coloff = EditorConfig.rx - EditorConfig.screencols + 1;
 }
 
-void editorDrawRows(struct abuf *ab) {
+void editorDrawRows(struct AppendBuffer *appendBuffer) {
     int y;
     for (y = 0; y < EditorConfig.screenrows; y++) {
         int filerow = y + EditorConfig.rowoff;
@@ -274,71 +274,71 @@ void editorDrawRows(struct abuf *ab) {
                 if (welcomelen > EditorConfig.screencols) welcomelen = EditorConfig.screencols;
                 int padding = (EditorConfig.screencols - welcomelen) / 2;
                 if (padding) {
-                    abAppend(ab, "~", 1);
+                    abAppend(appendBuffer, "~", 1);
                     padding--;
                 }
-                while (padding--) abAppend(ab, " ", 1);
-                abAppend(ab, welcome, welcomelen);
-            } else abAppend(ab, "~", 1);
+                while (padding--) abAppend(appendBuffer, " ", 1);
+                abAppend(appendBuffer, welcome, welcomelen);
+            } else abAppend(appendBuffer, "~", 1);
         } else {
             int len = EditorConfig.row[filerow].rsize - EditorConfig.coloff;
             if (len < 0) len = 0;
             if (len > EditorConfig.screencols) len = EditorConfig.screencols;
-            abAppend(ab, &EditorConfig.row[filerow].render[EditorConfig.coloff], len);
+            abAppend(appendBuffer, &EditorConfig.row[filerow].render[EditorConfig.coloff], len);
         }
 
-        abAppend(ab, "\x1b[K", 3);
-        abAppend(ab, "\r\n", 2);
+        abAppend(appendBuffer, "\x1b[K", 3);
+        abAppend(appendBuffer, "\r\n", 2);
     }
 }
 
-void editorDrawStatusBar(struct abuf *ab) {
-    abAppend(ab, "\x1b[7m", 4);
+void editorDrawStatusBar(struct AppendBuffer *appendBuffer) {
+    abAppend(appendBuffer, "\x1b[7m", 4);
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines", EditorConfig.filename ? EditorConfig.filename : "[No Name]", EditorConfig.numrows);
     int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", EditorConfig.cy + 1, EditorConfig.numrows);
     if (len > EditorConfig.screencols) len = EditorConfig.screencols;
-    abAppend(ab, status, len);
+    abAppend(appendBuffer, status, len);
     while (len < EditorConfig.screencols) {
         if (EditorConfig.screencols - len == rlen) {
-            abAppend(ab, rstatus, rlen);
+            abAppend(appendBuffer, rstatus, rlen);
             break;
         } else {
-            abAppend(ab, " ", 1);
+            abAppend(appendBuffer, " ", 1);
             len++;
         }
     }
-    abAppend(ab, "\x1b[m", 3);
-    abAppend(ab, "\r\n", 2);
+    abAppend(appendBuffer, "\x1b[m", 3);
+    abAppend(appendBuffer, "\r\n", 2);
 }
 
-void editorDrawMessageBar(struct abuf *ab) {
-    abAppend(ab, "\x1b[K", 3);
+void editorDrawMessageBar(struct AppendBuffer *appendBuffer) {
+    abAppend(appendBuffer, "\x1b[K", 3);
     int msglen = strlen(EditorConfig.statusmsg);
     if (msglen > EditorConfig.screencols) msglen = EditorConfig.screencols;
-    if (msglen && time(NULL) - EditorConfig.statusmsgTime < 5) abAppend(ab, EditorConfig.statusmsg, msglen);
+    if (msglen && time(NULL) - EditorConfig.statusmsgTime < 5) abAppend(appendBuffer, EditorConfig.statusmsg, msglen);
 }
 
 void editorRefreshScreen(void) {
     editorScroll();
 
-    struct abuf ab = ABUF_INIT;
+    struct AppendBuffer appendBuffer = ABUF_INIT;
 
-    abAppend(&ab, "\x1b[?25l", 6);
-    abAppend(&ab, "\x1b[H", 3);
+    abAppend(&appendBuffer, "\x1b[?25l", 6);
+    abAppend(&appendBuffer, "\x1b[H", 3);
 
-    editorDrawRows(&ab);
-    editorDrawStatusBar(&ab);
-    editorDrawMessageBar(&ab);
+    editorDrawRows(&appendBuffer);
+    editorDrawStatusBar(&appendBuffer);
+    editorDrawMessageBar(&appendBuffer);
 
     char buf[32];
     snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (EditorConfig.cy - EditorConfig.rowoff) + 1, (EditorConfig.rx - EditorConfig.coloff) + 1);
-    abAppend(&ab, buf, strlen(buf));
+    abAppend(&appendBuffer, buf, strlen(buf));
 
-    abAppend(&ab, "\x1b[?25h", 6);
+    abAppend(&appendBuffer, "\x1b[?25h", 6);
 
-    write(STDOUT_FILENO, ab.b, ab.len);
-    abFree(&ab);
+    write(STDOUT_FILENO, appendBuffer.b, appendBuffer.len);
+    abFree(&appendBuffer);
 }
 
 void editorSetStatusMessage(const char *fmt, ...) {
