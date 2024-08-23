@@ -1,0 +1,7 @@
+- Opening files has funky behaviour
+    - Can't create file when specified from STDIN
+    - Can't save in other directories
+- Config file
+- Extendable syntax highlighting
+- Copy and Paste
+- Auto Indent
