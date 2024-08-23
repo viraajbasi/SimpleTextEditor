@@ -1,8 +1,14 @@
-/*** includes ***/
+/* DEFINES */
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 #define _GNU_SOURCE
+#define KILO_VERSION "0.0.1"
+#define KILO_TAB_STOP 8
+#define KILO_QUIT_TIMES 3
+#define CTRL_KEY(k) ((k) & 0x1f) // Ctrl + [A-Z] map to bytes 1-26
+#define ABUF_INIT {NULL, 0}
 
+/* INCLUDES */
 #include <unistd.h>
 #include <termios.h>
 #include <stdlib.h>
@@ -16,26 +22,7 @@
 #include <stdarg.h>
 #include <fcntl.h>
 
-/*** defines ***/
-#define KILO_VERSION "0.0.1"
-#define KILO_TAB_STOP 8
-#define KILO_QUIT_TIMES 3
-#define CTRL_KEY(k) ((k) & 0x1f) // Ctrl + [A-Z] map to bytes 1-26
-
-enum editorKey {
-    BACKSPACE = 127,
-    ARROW_LEFT = 1000,
-    ARROW_RIGHT,
-    ARROW_UP,
-    ARROW_DOWN,
-    DEL_KEY,
-    HOME_KEY,
-    END_KEY,
-    PAGE_UP,
-    PAGE_DOWN
-};
-
-/*** data ***/
+/* DATA */
 typedef struct editorRow {
     int size;
     int rsize;
@@ -43,7 +30,12 @@ typedef struct editorRow {
     char *render;
 } editorRow;
 
-struct editorConfig {
+typedef struct appendBuffer {
+    char *buf;
+    int len;
+} appendBuffer;
+
+typedef struct editorConfig {
     int cx;
     int cy;
     int rx;
@@ -58,15 +50,92 @@ struct editorConfig {
     char statusmsg[80];
     time_t statusmsgTime;
     struct termios origTermios;
+} editorConfig;
+
+editorConfig E_State;
+
+enum editorKey {
+    BACKSPACE = 127,
+    ARROW_LEFT = 1000,
+    ARROW_RIGHT,
+    ARROW_UP,
+    ARROW_DOWN,
+    DEL_KEY,
+    HOME_KEY,
+    END_KEY,
+    PAGE_UP,
+    PAGE_DOWN
 };
-struct editorConfig E_State;
 
-/*** prototypes ***/
-void editorSetStatusMessage(const char *fmt, ...);
+/* PROTOTYPES */
+// append buffer
+void abAppend(appendBuffer *appendBuffer, const char *s, int len);
+void abFree(appendBuffer *appendBuffer);
+
+// terminal
+void die(const char *s);
+void disableRawMode(void);
+void enableRawMode(void);
+int editorReadKey(void);
+int getCursorPosition(int *rows, int *cols);
+int getWindowSize(int *rows, int *cols);
+
+// row operations
+int editorRowCxToRx(editorRow *row, int cx);
+int editorRowRxToCx(editorRow *row, int rx);
+void editorUpdateRow(editorRow *row);
+void editorInsertRow(int pos, char *s, size_t len);
+void editorFreeRow(editorRow *row);
+void editorDeleteRow(int pos);
+void editorRowInsertChar(editorRow *row, int pos, int c);
+void editorRowAppendString(editorRow *row, char *s, size_t len);
+void editorRowDeleteChar(editorRow *row, int pos);
+
+// editor operations
+void editorInsertChar(int c);
+void editorInsertNewLine(void);
+void editorDeleteChar(void);
+
+// file i/o
+char *editorRowsToString(int *buflen);
+void editorOpen(char *filename);
+void editorSave(void);
+
+// find
+void editorFindCallback(char *callback, int key);
+void editorFind(void);
+
+// output
+void editorScroll(void);
+void editorDrawRows(appendBuffer *appendBuffer);
+void editorDrawStatusBar(appendBuffer *appendBuffer);
+void editorDrawMessageBar(appendBuffer *appendBuffer);
 void editorRefreshScreen(void);
-char *editorPrompt(char *prompt, void (*callback)(char *, int));
+void editorSetStatusMessage(const char *fmt, ...);
 
-/*** terminal ***/
+// input
+char *editorPrompt(char *prompt, void (*callback)(char *, int));
+void editorMoveCursor(int key);
+void editorProcessKeyPress(void);
+
+// init
+void initEditor(void);
+
+/* APPEND BUFFER */
+void abAppend(appendBuffer *appendBuffer, const char *s, int len) {
+    char *new = realloc(appendBuffer->buf, appendBuffer->len + len);
+
+    if (new == NULL) return;
+    memcpy(&new[appendBuffer->len], s, len);
+    appendBuffer->buf = new;
+    appendBuffer->len += len;
+}
+
+void abFree(appendBuffer *appendBuffer) {
+    free(appendBuffer->buf);
+}
+
+/* TERMINAL */
 void die(const char *s) {
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
@@ -176,7 +245,7 @@ int getWindowSize(int *rows, int *cols) {
     }
 }
 
-/*** row operations ***/
+/* ROW OPERATIONS */
 int editorRowCxToRx(editorRow *row, int cx) {
     int rx = 0;
     for (int i = 0; i < cx; i++) {
@@ -278,7 +347,7 @@ void editorRowDeleteChar(editorRow *row, int pos) {
     E_State.dirty++;
 }
 
-/*** editor operations ***/
+/* EDITOR OPERATIONS */
 void editorInsertChar(int c) {
     if (E_State.cy == E_State.numrows) editorInsertRow(E_State.numrows, "", 0);
     editorRowInsertChar(&E_State.row[E_State.cy], E_State.cx, c);
@@ -315,7 +384,7 @@ void editorDeleteChar(void) {
     }
 }
 
-/*** file i/o ***/
+/* FILE I/O */
 char *editorRowsToString(int *buflen) {
     int totlen = 0;
     for (int i = 0; i < E_State.numrows; i++)
@@ -381,7 +450,7 @@ void editorSave(void) {
     editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
 }
 
-/*** find ***/
+/* FIND */
 void editorFindCallback(char *query, int key) {
     static int last_match = -1;
     static int direction = 1;
@@ -435,28 +504,7 @@ void editorFind(void) {
     }
 }
 
-/*** append buffer ***/
-struct AppendBuffer {
-    char *b;
-    int len;
-};
-
-#define ABUF_INIT {NULL, 0}
-
-void abAppend(struct AppendBuffer *appendBuffer, const char *s, int len) {
-    char *new = realloc(appendBuffer->b, appendBuffer->len + len);
-
-    if (new == NULL) return;
-    memcpy(&new[appendBuffer->len], s, len);
-    appendBuffer->b = new;
-    appendBuffer->len += len;
-}
-
-void abFree(struct AppendBuffer *appendBuffer) {
-    free(appendBuffer->b);
-}
-
-/*** output ***/
+/* OUTPUT */
 void editorScroll(void) {
     E_State.rx = 0;
     if (E_State.cy < E_State.numrows) E_State.rx = editorRowCxToRx(&E_State.row[E_State.cy], E_State.cx);
@@ -466,7 +514,7 @@ void editorScroll(void) {
     if (E_State.rx >= E_State.coloff + E_State.screencols) E_State.coloff = E_State.rx - E_State.screencols + 1;
 }
 
-void editorDrawRows(struct AppendBuffer *appendBuffer) {
+void editorDrawRows(appendBuffer *appendBuffer) {
     int y;
     for (y = 0; y < E_State.screenrows; y++) {
         int filerow = y + E_State.rowoff;
@@ -495,7 +543,7 @@ void editorDrawRows(struct AppendBuffer *appendBuffer) {
     }
 }
 
-void editorDrawStatusBar(struct AppendBuffer *appendBuffer) {
+void editorDrawStatusBar(appendBuffer *appendBuffer) {
     abAppend(appendBuffer, "\x1b[7m", 4);
     char status[80], rstatus[80];
     int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
@@ -518,7 +566,7 @@ void editorDrawStatusBar(struct AppendBuffer *appendBuffer) {
     abAppend(appendBuffer, "\r\n", 2);
 }
 
-void editorDrawMessageBar(struct AppendBuffer *appendBuffer) {
+void editorDrawMessageBar(appendBuffer *appendBuffer) {
     abAppend(appendBuffer, "\x1b[K", 3);
     int msglen = strlen(E_State.statusmsg);
     if (msglen > E_State.screencols) msglen = E_State.screencols;
@@ -528,7 +576,7 @@ void editorDrawMessageBar(struct AppendBuffer *appendBuffer) {
 void editorRefreshScreen(void) {
     editorScroll();
 
-    struct AppendBuffer appendBuffer = ABUF_INIT;
+    appendBuffer appendBuffer = ABUF_INIT;
 
     abAppend(&appendBuffer, "\x1b[?25l", 6);
     abAppend(&appendBuffer, "\x1b[H", 3);
@@ -543,7 +591,7 @@ void editorRefreshScreen(void) {
 
     abAppend(&appendBuffer, "\x1b[?25h", 6);
 
-    write(STDOUT_FILENO, appendBuffer.b, appendBuffer.len);
+    write(STDOUT_FILENO, appendBuffer.buf, appendBuffer.len);
     abFree(&appendBuffer);
 }
 
@@ -555,7 +603,7 @@ void editorSetStatusMessage(const char *fmt, ...) {
     E_State.statusmsgTime = time(NULL);
 }
 
-/*** input ***/
+/* INPUT */
 char *editorPrompt(char *prompt, void (*callback)(char *, int)) {
     size_t bufsize = 128;
     char *buf = malloc(bufsize);
@@ -626,7 +674,7 @@ void editorMoveCursor(int key) {
         E_State.cx = rowlen;
 }
 
-void editorProcessKeypress(void) {
+void editorProcessKeyPress(void) {
     static int quit_times = KILO_QUIT_TIMES;
     
     int c = editorReadKey();
@@ -701,7 +749,7 @@ void editorProcessKeypress(void) {
     quit_times = KILO_QUIT_TIMES;
 }
 
-/*** init ***/
+/* INIT */
 void initEditor(void) {
     E_State.cx = 0;
     E_State.cy = 0;
@@ -729,7 +777,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         editorRefreshScreen();
-        editorProcessKeypress();
+        editorProcessKeyPress();
     }
 
     return 0;
