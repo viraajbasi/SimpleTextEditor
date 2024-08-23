@@ -580,7 +580,7 @@ void editorDrawRows(appendBuffer *ab) {
                 } else {
                     int colour = editorSyntaxToColour(hl[j]);
                     if (colour != current_colour) {
-                        current_colour = colour;git 
+                        current_colour = colour;
                         char buf[16];
                         int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", colour);
                         abAppend(ab, buf, clen);
