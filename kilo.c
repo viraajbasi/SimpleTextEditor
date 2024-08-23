@@ -731,7 +731,17 @@ void editorDrawRows(appendBuffer *ab) {
             unsigned char *hl = &E.row[filerow].hl[E.coloff];
             int current_colour = -1;
             for (int j = 0; j < len; j++) {
-                if (hl[j] == HL_NORMAL) {
+                if (iscntrl(c[j])) {
+                    char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+                    abAppend(ab, "\x1b[7m", 4);
+                    abAppend(ab, &sym, 1);
+                    abAppend(ab, "\x1b[m", 3);
+                    if (current_colour != -1) {
+                        char buf[16];
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", current_colour);
+                        abAppend(ab, buf, clen);
+                    }
+                } else if (hl[j] == HL_NORMAL) {
                     if (current_colour != -1) {
                         abAppend(ab, "\x1b[39m", 5);
                         current_colour = -1;
