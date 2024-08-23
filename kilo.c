@@ -28,6 +28,7 @@ typedef struct editorRow {
     int rsize;
     char *chars;
     char *render;
+    unsigned char *hl;
 } editorRow;
 
 typedef struct appendBuffer {
@@ -67,6 +68,11 @@ enum editorKey {
     PAGE_DOWN
 };
 
+enum editorHighlight {
+    HL_NORMAL = 0,
+    HL_NUMBER
+};
+
 /* PROTOTYPES */
 // append buffer
 void abAppend(appendBuffer *ab, const char *s, int len);
@@ -79,6 +85,10 @@ void enableRawMode(void);
 int editorReadKey(void);
 int getCursorPosition(int *rows, int *cols);
 int getWindowSize(int *rows, int *cols);
+
+// syntax highlighting
+void editorUpdateSyntax(editorRow *row);
+int editorSyntaxToColour(int hl);
 
 // row operations
 int editorRowCxToRx(editorRow *row, int cx);
@@ -245,6 +255,24 @@ int getWindowSize(int *rows, int *cols) {
     }
 }
 
+/* SYNTAX HIGHLIGHTING */
+void editorUpdateSyntax(editorRow *row) {
+    row->hl = realloc(row->hl, row->rsize);
+    memset(row->hl, HL_NORMAL, row->rsize);
+
+    for (int i = 0; i < row->rsize; i++) {
+        if (isdigit(row->render[i]))
+            row->hl[i] = HL_NUMBER;
+    }
+}
+
+int editorSyntaxToColour(int hl) {
+    switch (hl) {
+        case HL_NUMBER: return 31;
+        default: return 37;
+    }
+}
+
 /* ROW OPERATIONS */
 int editorRowCxToRx(editorRow *row, int cx) {
     int rx = 0;
@@ -287,6 +315,8 @@ void editorUpdateRow(editorRow *row) {
     }
     row->render[idx] = '\0';
     row->rsize = idx;
+
+    editorUpdateSyntax(row);
 }
 
 void editorInsertRow(int pos, char *s, size_t len) {
@@ -302,6 +332,7 @@ void editorInsertRow(int pos, char *s, size_t len) {
 
     E.row[pos].rsize = 0;
     E.row[pos].render = NULL;
+    E.row[pos].hl = NULL;
     editorUpdateRow(&E.row[pos]);
 
     E.numrows++;
@@ -311,6 +342,7 @@ void editorInsertRow(int pos, char *s, size_t len) {
 void editorFreeRow(editorRow *row) {
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 void editorDeleteRow(int pos) {
@@ -536,13 +568,27 @@ void editorDrawRows(appendBuffer *ab) {
             if (len < 0) len = 0;
             if (len > E.screencols) len = E.screencols;
             char *c = &E.row[filerow].render[E.coloff];
+            unsigned char *hl = &E.row[filerow].hl[E.coloff];
+            int current_colour = -1;
             for (int j = 0; j < len; j++) {
-                if (isdigit(c[j])) {
-                    abAppend(ab, "\x1b[31m", 5);
+                if (hl[j] == HL_NORMAL) {
+                    if (current_colour != -1) {
+                        abAppend(ab, "\x1b[39m", 5);
+                        current_colour = -1;
+                    }
                     abAppend(ab, &c[j], 1);
-                    abAppend(ab, "\x1b[39m", 5);
-                } else abAppend(ab, &c[j], 1);
+                } else {
+                    int colour = editorSyntaxToColour(hl[j]);
+                    if (colour != current_colour) {
+                        current_colour = colour;git 
+                        char buf[16];
+                        int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", colour);
+                        abAppend(ab, buf, clen);
+                    }
+                    abAppend(ab, &c[j], 1);
+                }
             }
+            abAppend(ab, "\x1b[39m", 5);
         }
 
         abAppend(ab, "\x1b[K", 3);
