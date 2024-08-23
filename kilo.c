@@ -8,6 +8,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f) // Ctrl + [A-Z] map to bytes 1-26
 #define ABUF_INIT {NULL, 0}
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HL_HIGHLIGHT_STRINGS (1<<1)
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /* INCLUDES */
@@ -79,6 +80,7 @@ enum editorKey {
 
 enum editorHighlight {
     HL_NORMAL = 0,
+    HL_STRING,
     HL_NUMBER,
     HL_MATCH
 };
@@ -89,7 +91,7 @@ struct editorSyntax HLDB[] = {
     {
         "c",
         C_HL_EXTENSIONS,
-        HL_HIGHLIGHT_NUMBERS
+        HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS
     },
 };
 
@@ -279,7 +281,7 @@ int getWindowSize(int *rows, int *cols) {
 
 /* SYNTAX HIGHLIGHTING */
 int isSeparator(int c) {
-    return isspace(c) || c == '\0' || strchr("\",.()+-/*=~<>[];", c) != NULL;
+    return isspace(c) || c == '\0' || strchr(",.()+-/*=~<>[];", c) != NULL;
 }
 
 void editorUpdateSyntax(editorRow *row) {
@@ -289,15 +291,37 @@ void editorUpdateSyntax(editorRow *row) {
     if (E.syntax == NULL) return;
 
     int prev_sep = 1;
+    int in_string = 0;
 
     int i = 0;
     while(i < row->rsize) {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 
+        if (E.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+            if (in_string) {
+                row->hl[i] = HL_STRING;
+                if (c == '\\' && i + 1 < row->rsize) {
+                    row->hl[i + 1] = HL_STRING;
+                    i += 2;
+                    continue;
+                }
+                if (c == in_string) in_string = 0;
+                i++;
+                prev_sep = 1;
+                continue;
+            } else {
+                if (c == '"' || c == '\'') {
+                    in_string = c;
+                    row->hl[i] = HL_STRING;
+                    i++;
+                    continue;
+                }
+            }
+        }
+
         if (E.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
-            if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) ||
-                (c == '.' && prev_hl == HL_NUMBER)) {
+            if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)) {
                 row->hl[i] = HL_NUMBER;
                 i++;
                 prev_sep = 0;
@@ -312,6 +336,7 @@ void editorUpdateSyntax(editorRow *row) {
 
 int editorSyntaxToColour(int hl) {
     switch (hl) {
+        case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH: return 34;
         default: return 37;
