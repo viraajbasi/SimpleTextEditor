@@ -1,6 +1,5 @@
-- Opening files has funky behaviour
-    - Can't create file when specified from STDIN
-    - Can't save in other directories
+- Create file if specified file from STDIN does not exist
+- Expand tilde to home
 - Config file
 - Extendable syntax highlighting
 - Copy and Paste

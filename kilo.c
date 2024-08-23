@@ -449,7 +449,8 @@ void editorSelectSyntaxHighlight(void) {
                         editorUpdateSyntax(&E.row[filerow]);
 
                     return;
-                }
+            }
+            i++;
         }
     }
 }
@@ -671,6 +672,7 @@ void editorSave(void) {
     }
     free(buf);
     editorSetStatusMessage("Can't save! I/O error: %s", strerror(errno));
+    E.filename = NULL;
 }
 
 /* FIND */
