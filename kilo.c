@@ -24,6 +24,7 @@
 #include <time.h>
 #include <stdarg.h>
 #include <fcntl.h>
+#include <wordexp.h>
 
 /* DATA */
 typedef struct editorRow {
@@ -646,7 +647,11 @@ void editorOpen(char *filename) {
 
 void editorSave(void) {
     if (E.filename == NULL){
-        E.filename = editorPrompt("Save as: %s", NULL);
+        char *filename = editorPrompt("Save as: %s (ESC to cancel)", NULL);
+        wordexp_t expanded;
+        wordexp(filename, &expanded, 0);
+        E.filename = expanded.we_wordv[0];
+        
         if (E.filename == NULL) {
             editorSetStatusMessage("Save aborted");
             return;
@@ -1045,7 +1050,12 @@ int main(int argc, char *argv[]) {
     enableRawMode();
     initEditor();
     
-    if (argc >= 2) editorOpen(argv[1]);
+    if (argc >= 2) {
+        wordexp_t expanded;
+        wordexp(argv[1], &expanded, 0);
+        char *path = expanded.we_wordv[0];
+        editorOpen(path);
+    }
 
     editorSetStatusMessage("HELP: Ctrl-Q = quit | Ctrl-S = save | Ctrl-F = find");
 
