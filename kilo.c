@@ -651,6 +651,7 @@ void editorSave(void) {
         wordexp_t expanded;
         wordexp(filename, &expanded, 0);
         E.filename = expanded.we_wordv[0];
+        wordfree(&expanded);
         
         if (E.filename == NULL) {
             editorSetStatusMessage("Save aborted");
@@ -1054,6 +1055,7 @@ int main(int argc, char *argv[]) {
         wordexp_t expanded;
         wordexp(argv[1], &expanded, 0);
         char *path = expanded.we_wordv[0];
+        wordfree(&expanded);
         editorOpen(path);
     }
 
